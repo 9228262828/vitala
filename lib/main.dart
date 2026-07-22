@@ -1798,7 +1798,7 @@ const privacy = [
       'The app is not directed to children below the minimum legal age.'),
   MapEntry('Contact and changes',
       'Policy updates and developer contact details are available through the app store listing.'),
-  MapEntry('Last updated', 'July 22, 2026')
+  MapEntry('Last updated', 'JULY, 2026')
 ];
 const terms = [
   MapEntry('Acceptance', 'Using Vitala means you accept these terms.'),
@@ -1811,7 +1811,7 @@ const terms = [
       'The developer cannot restore data lost after uninstalling, clearing storage, or device failure.'),
   MapEntry('Liability',
       'To the extent allowed by law, the developer is not liable for medical decisions or indirect loss.'),
-  MapEntry('Last updated', 'July 22, 2026')
+  MapEntry('Last updated', 'JULY, 2026')
 ];
 const disclaimer = [
   MapEntry('Not a medical provider',
