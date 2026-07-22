@@ -887,7 +887,10 @@ class MedTile extends StatelessWidget {
           if (v == 'toggle') x.setMed(m.copyWith(active: !m.active));
           if (v == 'delete' && await confirm(
               c, 'Delete medication?', 'This medication will be removed.') ==
-              true) x.delMed(m);
+              true) {
+            if (!c.mounted) return;
+            x.delMed(m);
+          }
         },
             itemBuilder: (_) =>
             [
@@ -941,6 +944,7 @@ class SymptomsPage extends StatelessWidget {
                     'This entry will be removed.',
                   ) ==
                       true) {
+                    if (!c.mounted) return;
                     x.delSymptom(s);
                   }
                 },
@@ -1313,6 +1317,7 @@ Future<void> details(BuildContext c, HealthRecord r) async {
                 if (await confirm(
                     d, 'Delete record?', 'This record will be removed.') ==
                     true) {
+                  if (!d.mounted) return;
                   await x.deleteRecord(r);
                   if (d.mounted) Navigator.pop(d);
                 }
@@ -1539,7 +1544,7 @@ Future<void> waterGoal(BuildContext c) async {
   } finally {
     t.dispose();
   }
-  if (v != null) x.setSettings(x.settings.copyWith(waterGoal: v));
+  if (v != null && c.mounted) x.setSettings(x.settings.copyWith(waterGoal: v));
 }
 
 Future<void> clearAll(BuildContext c) async {
@@ -1548,6 +1553,7 @@ Future<void> clearAll(BuildContext c) async {
   if (await confirm(c, 'Clear all data?',
       'This permanently deletes all local records, medications and symptoms.',
       label: 'Clear all') == true) {
+    if (!c.mounted) return;
     await x.clear();
     if (c.mounted) ScaffoldMessenger.of(c).showSnackBar(
         const SnackBar(content: Text('All local data cleared')));
