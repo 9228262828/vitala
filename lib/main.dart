@@ -1224,162 +1224,191 @@ Future<void> recordEditor(BuildContext c, RecordType type,
     {HealthRecord? r}) async
 {
   if (!c.mounted) return;
-  final x = Scope.of(c),
-      key = GlobalKey<FormState>(),
-      a = TextEditingController(text: r?.a?.toString() ?? ''),
-      b = TextEditingController(text: r?.b?.toString() ?? ''),
-      cc = TextEditingController(text: r?.c?.toString() ?? ''),
-      notes = TextEditingController(text: r?.notes ?? ''),
-      title = TextEditingController(text: '${r?.extra['title'] ?? ''}');
-  DateTime dt = r?.dateTime ?? DateTime.now();
-  String mood = '${r?.extra['mood'] ?? 'Good'}',
-      ctx = '${r?.extra['context'] ??
-          (type == RecordType.bloodSugar ? 'Fasting' : 'Resting')}';
-  try {
-    await showModalBottomSheet<void>(context: c,
-        isScrollControlled: true,
-        useSafeArea: true,
-        showDragHandle: true,
-        builder: (s) =>
-            StatefulBuilder(builder: (c, set) =>
-                Padding(padding: EdgeInsets.fromLTRB(18, 0, 18, MediaQuery
-                    .of(c)
-                    .viewInsets
-                    .bottom + 20),
-                    child: SingleChildScrollView(child: Form(key: key,
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('${r == null ? 'Add' : 'Edit'} ${type.label}',
-                                  style: Theme
-                                      .of(c)
-                                      .textTheme
-                                      .headlineSmall
-                                      ?.copyWith(fontWeight: FontWeight.w900)),
-                              const SizedBox(height: 14),
-                              if(type == RecordType.note)field(
-                                  title, 'Title') else
-                                if(type ==
-                                    RecordType.mood)DropdownButtonFormField(
-                                    value: mood,
-                                    items: [
-                                      'Very Bad',
-                                      'Bad',
-                                      'Neutral',
-                                      'Good',
-                                      'Great'
-                                    ].map((e) =>
-                                        DropdownMenuItem(
-                                            value: e, child: Text(e))).toList(),
-                                    onChanged: (v) => set(() => mood = v!),
-                                    decoration: const InputDecoration(
-                                        labelText: 'Mood')) else
-                                  ...[
-                                    number(a, type == RecordType.bloodPressure
-                                        ? 'Systolic'
-                                        : type.label, type.unit,
-                                        max: type == RecordType.oxygen
-                                            ? 100
-                                            : null),
-                                    if(type == RecordType.bloodPressure)number(
-                                        b, 'Diastolic', 'mmHg'),
-                                    if(type == RecordType.bloodPressure)number(
-                                        cc, 'Pulse (optional)', 'bpm',
-                                        optional: true)
-                                  ],
-                              if(type == RecordType.bloodSugar ||
-                                  type == RecordType.heartRate)...[
-                                const SizedBox(height: 10),
-                                DropdownButtonFormField(value: ctx,
-                                    items: (type == RecordType.bloodSugar ? [
-                                      'Fasting',
-                                      'Before meal',
-                                      'After meal',
-                                      'Random',
-                                      'Bedtime'
-                                    ] : [
-                                      'Resting',
-                                      'Walking',
-                                      'Exercise',
-                                      'After exercise'
-                                    ])
-                                        .map((e) =>
-                                        DropdownMenuItem(
-                                            value: e, child: Text(e)))
-                                        .toList(),
-                                    onChanged: (v) =>
-                                        set(() => ctx = v!),
-                                    decoration: const InputDecoration(
-                                        labelText: 'Context'))
-                              ],
-                              const SizedBox(height: 10),
-                              ListTile(leading: const Icon(Icons.event),
-                                  title: const Text('Date and time'),
-                                  subtitle: Text(date(dt)),
-                                  onTap: () async {
-                                    final first = DateTime(2000);
-                                    final last = DateTime.now().add(
-                                        const Duration(days: 1));
-                                    final initial = dt.isBefore(first)
-                                        ? first
-                                        : dt.isAfter(last)
-                                            ? last
-                                            : dt;
-                                    final d = await showDatePicker(context: c,
-                                        firstDate: first,
-                                        lastDate: last,
-                                        initialDate: initial);
-                                    if (d == null || !c.mounted) return;
-                                    final t = await showTimePicker(
-                                        context: c, initialTime: TimeOfDay
-                                        .fromDateTime(dt));
-                                    if (t != null && c.mounted) set(() =>
-                                    dt = DateTime(d.year, d.month, d.day, t.hour,
-                                        t.minute));
-                                  }),
-                              const SizedBox(height: 10),
-                              TextFormField(controller: notes,
-                                  maxLines: 3,
-                                  decoration: const InputDecoration(
-                                      labelText: 'Notes (optional)')),
-                              const SizedBox(height: 14),
-                              SizedBox(width: double.infinity,
-                                  child: FilledButton(onPressed: () async {
-                                    if (!(key.currentState?.validate() ?? false))
-                                      return;
-                                    final n = HealthRecord(id: r?.id ?? uid(),
-                                        type: type,
-                                        dateTime: dt,
-                                        a: doubleOf(a.text),
-                                        b: doubleOf(b.text),
-                                        c: doubleOf(cc.text),
-                                        notes: notes.text.trim(),
-                                        extra: {
-                                          if(type == RecordType.mood)'mood': mood,
-                                          if(type ==
-                                              RecordType.note)'title': title.text
-                                              .trim(),
-                                          if(type == RecordType.bloodSugar ||
-                                              type == RecordType
-                                                  .heartRate)'context': ctx
-                                        });
-                                    if (r == null)
-                                      await x.addRecord(n);
-                                    else
-                                      await x.updateRecord(n);
-                                    if (!s.mounted) return;
+  await showModalBottomSheet<void>(context: c,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => _RecordEditorSheet(type: type, record: r));
+}
 
-                                    FocusScope.of(s).unfocus();
+class _RecordEditorSheet extends StatefulWidget {
+  const _RecordEditorSheet({required this.type, this.record});
 
-                                    Navigator.of(s).pop();
-                                  }, child: const Text('Save record')))
-                            ]))))));
-  } finally {
+  final RecordType type;
+  final HealthRecord? record;
+
+  @override State<_RecordEditorSheet> createState() =>
+      _RecordEditorSheetState();
+}
+
+class _RecordEditorSheetState extends State<_RecordEditorSheet> {
+  final key = GlobalKey<FormState>();
+  late final TextEditingController a,
+      b,
+      cc,
+      notes,
+      title;
+  late DateTime dt;
+  late String mood,
+      ctx;
+
+  @override void initState() {
+    super.initState();
+    final r = widget.record;
+    a = TextEditingController(text: r?.a?.toString() ?? '');
+    b = TextEditingController(text: r?.b?.toString() ?? '');
+    cc = TextEditingController(text: r?.c?.toString() ?? '');
+    notes = TextEditingController(text: r?.notes ?? '');
+    title = TextEditingController(text: '${r?.extra['title'] ?? ''}');
+    dt = r?.dateTime ?? DateTime.now();
+    mood = '${r?.extra['mood'] ?? 'Good'}';
+    ctx = '${r?.extra['context'] ??
+        (widget.type == RecordType.bloodSugar ? 'Fasting' : 'Resting')}';
+  }
+
+  @override void dispose() {
     a.dispose();
     b.dispose();
     cc.dispose();
     notes.dispose();
     title.dispose();
+    super.dispose();
+  }
+
+  @override Widget build(BuildContext c) {
+    final r = widget.record,
+        type = widget.type;
+    return Padding(padding: EdgeInsets.fromLTRB(18, 0, 18, MediaQuery
+        .of(c)
+        .viewInsets
+        .bottom + 20),
+        child: SingleChildScrollView(child: Form(key: key,
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${r == null ? 'Add' : 'Edit'} ${type.label}',
+                      style: Theme
+                          .of(c)
+                          .textTheme
+                          .headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 14),
+                  if(type == RecordType.note)field(title, 'Title') else
+                    if(type == RecordType.mood)DropdownButtonFormField(
+                        value: mood,
+                        items: [
+                          'Very Bad',
+                          'Bad',
+                          'Neutral',
+                          'Good',
+                          'Great'
+                        ].map((e) =>
+                            DropdownMenuItem(
+                                value: e, child: Text(e))).toList(),
+                        onChanged: (v) => setState(() => mood = v!),
+                        decoration: const InputDecoration(
+                            labelText: 'Mood')) else
+                      ...[
+                        number(a, type == RecordType.bloodPressure
+                            ? 'Systolic'
+                            : type.label, type.unit,
+                            max: type == RecordType.oxygen
+                                ? 100
+                                : null),
+                        if(type == RecordType.bloodPressure)number(
+                            b, 'Diastolic', 'mmHg'),
+                        if(type == RecordType.bloodPressure)number(
+                            cc, 'Pulse (optional)', 'bpm',
+                            optional: true)
+                      ],
+                  if(type == RecordType.bloodSugar ||
+                      type == RecordType.heartRate)...[
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField(value: ctx,
+                        items: (type == RecordType.bloodSugar ? [
+                          'Fasting',
+                          'Before meal',
+                          'After meal',
+                          'Random',
+                          'Bedtime'
+                        ] : [
+                          'Resting',
+                          'Walking',
+                          'Exercise',
+                          'After exercise'
+                        ])
+                            .map((e) =>
+                            DropdownMenuItem(
+                                value: e, child: Text(e)))
+                            .toList(),
+                        onChanged: (v) =>
+                            setState(() => ctx = v!),
+                        decoration: const InputDecoration(
+                            labelText: 'Context'))
+                  ],
+                  const SizedBox(height: 10),
+                  ListTile(leading: const Icon(Icons.event),
+                      title: const Text('Date and time'),
+                      subtitle: Text(date(dt)),
+                      onTap: pickDateTime),
+                  const SizedBox(height: 10),
+                  TextFormField(controller: notes,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                          labelText: 'Notes (optional)')),
+                  const SizedBox(height: 14),
+                  SizedBox(width: double.infinity,
+                      child: FilledButton(onPressed: save,
+                          child: const Text('Save record')))
+                ]))));
+  }
+
+  Future<void> pickDateTime() async {
+    final first = DateTime(2000);
+    final last = DateTime.now().add(const Duration(days: 1));
+    final initial = dt.isBefore(first)
+        ? first
+        : dt.isAfter(last)
+            ? last
+            : dt;
+    final d = await showDatePicker(context: context,
+        firstDate: first,
+        lastDate: last,
+        initialDate: initial);
+    if (d == null || !mounted) return;
+    final t = await showTimePicker(
+        context: context, initialTime: TimeOfDay.fromDateTime(dt));
+    if (t != null && mounted) setState(() =>
+    dt = DateTime(d.year, d.month, d.day, t.hour, t.minute));
+  }
+
+  Future<void> save() async {
+    if (!(key.currentState?.validate() ?? false)) return;
+    final x = Scope.of(context),
+        r = widget.record,
+        type = widget.type,
+        n = HealthRecord(id: r?.id ?? uid(),
+            type: type,
+            dateTime: dt,
+            a: doubleOf(a.text),
+            b: doubleOf(b.text),
+            c: doubleOf(cc.text),
+            notes: notes.text.trim(),
+            extra: {
+              if(type == RecordType.mood)'mood': mood,
+              if(type == RecordType.note)'title': title.text.trim(),
+              if(type == RecordType.bloodSugar ||
+                  type == RecordType.heartRate)'context': ctx
+            });
+    if (r == null)
+      await x.addRecord(n);
+    else
+      await x.updateRecord(n);
+    if (!mounted) return;
+
+    FocusScope.of(context).unfocus();
+
+    Navigator.of(context).pop();
   }
 }
 
@@ -1455,198 +1484,259 @@ Future<void> details(BuildContext c, HealthRecord r) async {
 
 Future<void> medEditor(BuildContext c) async {
   if (!c.mounted) return;
-  final x = Scope.of(c),
-      key = GlobalKey<FormState>(),
-      name = TextEditingController(),
-      dose = TextEditingController(),
-      notes = TextEditingController();
+  await showModalBottomSheet<void>(context: c,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => const _MedicationEditorSheet());
+}
+
+class _MedicationEditorSheet extends StatefulWidget {
+  const _MedicationEditorSheet();
+
+  @override State<_MedicationEditorSheet> createState() =>
+      _MedicationEditorSheetState();
+}
+
+class _MedicationEditorSheetState extends State<_MedicationEditorSheet> {
+  final key = GlobalKey<FormState>();
+  late final TextEditingController name,
+      dose,
+      notes;
   String unit = 'Tablet',
       freq = 'Once daily';
   DateTime start = DateTime.now();
-  try {
-    await showModalBottomSheet<void>(context: c,
-        isScrollControlled: true,
-        useSafeArea: true,
-        showDragHandle: true,
-        builder: (s) =>
-            StatefulBuilder(builder: (c, set) =>
-                Padding(padding: EdgeInsets.fromLTRB(18, 0, 18, MediaQuery
-                    .of(c)
-                    .viewInsets
-                    .bottom + 20),
-                    child: SingleChildScrollView(child: Form(key: key,
-                        child: Column(children: [
-                          field(name, 'Medication name'),
-                          const SizedBox(height: 10),
-                          field(dose, 'Dosage'),
-                          const SizedBox(height: 10),
-                          DropdownButtonFormField(value: unit,
-                              items: [
-                                'Tablet',
-                                'Capsule',
-                                'ml',
-                                'mg',
-                                'Drops',
-                                'Injection',
-                                'Other'
-                              ]
-                                  .map((e) =>
-                                  DropdownMenuItem(value: e, child: Text(e)))
-                                  .toList(),
-                              onChanged: (v) => set(() => unit = v!),
-                              decoration: const InputDecoration(
-                                  labelText: 'Unit')),
-                          const SizedBox(height: 10),
-                          DropdownButtonFormField(value: freq,
-                              items: [
-                                'Once daily',
-                                'Twice daily',
-                                'Three times daily',
-                                'Every 6 hours',
-                                'Every 8 hours',
-                                'Every 12 hours',
-                                'As needed',
-                                'Custom'
-                              ]
-                                  .map((e) =>
-                                  DropdownMenuItem(value: e, child: Text(e)))
-                                  .toList(),
-                              onChanged: (v) => set(() => freq = v!),
-                              decoration: const InputDecoration(
-                                  labelText: 'Frequency')),
-                          const SizedBox(height: 10),
-                          ListTile(title: const Text('Start date'),
-                              subtitle: Text(DateFormat.yMMMd().format(start)),
-                              onTap: () async {
-                                final d = await showDatePicker(context: c,
-                                    firstDate: DateTime(2000),
-                                    lastDate: DateTime(2100),
-                                    initialDate: start);
-                                if (d != null && c.mounted) set(() => start = d);
-                              }),
-                          TextFormField(controller: notes,
-                              maxLines: 3,
-                              decoration: const InputDecoration(
-                                  labelText: 'Notes (optional)')),
-                          const SizedBox(height: 14),
-                          SizedBox(width: double.infinity,
-                              child: FilledButton(onPressed: () async {
-                                if (!(key.currentState?.validate() ?? false))
-                                  return;
-                                await x.addMed(Medication(id: uid(),
-                                    name: name.text.trim(),
-                                    dosage: dose.text.trim(),
-                                    unit: unit,
-                                    frequency: freq,
-                                    startDate: start,
-                                    notes: notes.text.trim()));
-                                if (!s.mounted) return;
 
-                                FocusScope.of(s).unfocus();
+  @override void initState() {
+    super.initState();
+    name = TextEditingController();
+    dose = TextEditingController();
+    notes = TextEditingController();
+  }
 
-                                Navigator.of(s).pop();
-                              }, child: const Text('Add medication')))
-                        ]))))));
-  } finally {
+  @override void dispose() {
     name.dispose();
     dose.dispose();
     notes.dispose();
+    super.dispose();
+  }
+
+  @override Widget build(BuildContext c) =>
+      Padding(padding: EdgeInsets.fromLTRB(18, 0, 18, MediaQuery
+          .of(c)
+          .viewInsets
+          .bottom + 20),
+          child: SingleChildScrollView(child: Form(key: key,
+              child: Column(children: [
+                field(name, 'Medication name'),
+                const SizedBox(height: 10),
+                field(dose, 'Dosage'),
+                const SizedBox(height: 10),
+                DropdownButtonFormField(value: unit,
+                    items: [
+                      'Tablet',
+                      'Capsule',
+                      'ml',
+                      'mg',
+                      'Drops',
+                      'Injection',
+                      'Other'
+                    ]
+                        .map((e) =>
+                        DropdownMenuItem(value: e, child: Text(e)))
+                        .toList(),
+                    onChanged: (v) => setState(() => unit = v!),
+                    decoration: const InputDecoration(
+                        labelText: 'Unit')),
+                const SizedBox(height: 10),
+                DropdownButtonFormField(value: freq,
+                    items: [
+                      'Once daily',
+                      'Twice daily',
+                      'Three times daily',
+                      'Every 6 hours',
+                      'Every 8 hours',
+                      'Every 12 hours',
+                      'As needed',
+                      'Custom'
+                    ]
+                        .map((e) =>
+                        DropdownMenuItem(value: e, child: Text(e)))
+                        .toList(),
+                    onChanged: (v) => setState(() => freq = v!),
+                    decoration: const InputDecoration(
+                        labelText: 'Frequency')),
+                const SizedBox(height: 10),
+                ListTile(title: const Text('Start date'),
+                    subtitle: Text(DateFormat.yMMMd().format(start)),
+                    onTap: pickStartDate),
+                TextFormField(controller: notes,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                        labelText: 'Notes (optional)')),
+                const SizedBox(height: 14),
+                SizedBox(width: double.infinity,
+                    child: FilledButton(onPressed: save,
+                        child: const Text('Add medication')))
+              ]))));
+
+  Future<void> pickStartDate() async {
+    final d = await showDatePicker(context: context,
+        firstDate: DateTime(2000),
+        lastDate: DateTime(2100),
+        initialDate: start);
+    if (d != null && mounted) setState(() => start = d);
+  }
+
+  Future<void> save() async {
+    if (!(key.currentState?.validate() ?? false)) return;
+    await Scope.of(context).addMed(Medication(id: uid(),
+        name: name.text.trim(),
+        dosage: dose.text.trim(),
+        unit: unit,
+        frequency: freq,
+        startDate: start,
+        notes: notes.text.trim()));
+    if (!mounted) return;
+
+    FocusScope.of(context).unfocus();
+
+    Navigator.of(context).pop();
   }
 }
 
 Future<void> symptomEditor(BuildContext c) async {
   if (!c.mounted) return;
-  final x = Scope.of(c),
-      key = GlobalKey<FormState>(),
-      name = TextEditingController(),
-      duration = TextEditingController(),
-      trigger = TextEditingController(),
-      notes = TextEditingController();
+  await showModalBottomSheet<void>(context: c,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => const _SymptomEditorSheet());
+}
+
+class _SymptomEditorSheet extends StatefulWidget {
+  const _SymptomEditorSheet();
+
+  @override State<_SymptomEditorSheet> createState() =>
+      _SymptomEditorSheetState();
+}
+
+class _SymptomEditorSheetState extends State<_SymptomEditorSheet> {
+  final key = GlobalKey<FormState>();
+  late final TextEditingController name,
+      duration,
+      trigger,
+      notes;
   int sev = 3;
-  try {
-    await showModalBottomSheet<void>(context: c,
-        isScrollControlled: true,
-        useSafeArea: true,
-        showDragHandle: true,
-        builder: (s) =>
-            StatefulBuilder(builder: (c, set) =>
-                Padding(padding: EdgeInsets.fromLTRB(18, 0, 18, MediaQuery
-                    .of(c)
-                    .viewInsets
-                    .bottom + 20),
-                    child: SingleChildScrollView(child: Form(key: key,
-                        child: Column(children: [
-                          field(name, 'Symptom name'),
-                          const SizedBox(height: 10),
-                          Text('Severity: $sev/10 (${severity(sev)})'),
-                          Slider(value: sev.toDouble(),
-                              min: 1,
-                              max: 10,
-                              divisions: 9,
-                              onChanged: (v) => set(() => sev = v.round())),
-                          TextFormField(controller: duration,
-                              decoration: const InputDecoration(
-                                  labelText: 'Duration (optional)')),
-                          const SizedBox(height: 10),
-                          TextFormField(controller: trigger,
-                              decoration: const InputDecoration(
-                                  labelText: 'Possible trigger (optional)')),
-                          const SizedBox(height: 10),
-                          TextFormField(controller: notes,
-                              maxLines: 3,
-                              decoration: const InputDecoration(
-                                  labelText: 'Notes (optional)')),
-                          const SizedBox(height: 14),
-                          SizedBox(width: double.infinity,
-                              child: FilledButton(onPressed: () async {
-                                if (!(key.currentState?.validate() ?? false))
-                                  return;
-                                await x.addSymptom(Symptom(id: uid(),
-                                    name: name.text.trim(),
-                                    severity: sev,
-                                    dateTime: DateTime.now(),
-                                    duration: duration.text.trim(),
-                                    trigger: trigger.text.trim(),
-                                    notes: notes.text.trim()));
-                                if (!s.mounted) return;
 
-                                FocusScope.of(s).unfocus();
+  @override void initState() {
+    super.initState();
+    name = TextEditingController();
+    duration = TextEditingController();
+    trigger = TextEditingController();
+    notes = TextEditingController();
+  }
 
-                                Navigator.of(s).pop();
-                              }, child: const Text('Add symptom')))
-                        ]))))));
-  } finally {
+  @override void dispose() {
     name.dispose();
     duration.dispose();
     trigger.dispose();
     notes.dispose();
+    super.dispose();
+  }
+
+  @override Widget build(BuildContext c) =>
+      Padding(padding: EdgeInsets.fromLTRB(18, 0, 18, MediaQuery
+          .of(c)
+          .viewInsets
+          .bottom + 20),
+          child: SingleChildScrollView(child: Form(key: key,
+              child: Column(children: [
+                field(name, 'Symptom name'),
+                const SizedBox(height: 10),
+                Text('Severity: $sev/10 (${severity(sev)})'),
+                Slider(value: sev.toDouble(),
+                    min: 1,
+                    max: 10,
+                    divisions: 9,
+                    onChanged: (v) => setState(() => sev = v.round())),
+                TextFormField(controller: duration,
+                    decoration: const InputDecoration(
+                        labelText: 'Duration (optional)')),
+                const SizedBox(height: 10),
+                TextFormField(controller: trigger,
+                    decoration: const InputDecoration(
+                        labelText: 'Possible trigger (optional)')),
+                const SizedBox(height: 10),
+                TextFormField(controller: notes,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                        labelText: 'Notes (optional)')),
+                const SizedBox(height: 14),
+                SizedBox(width: double.infinity,
+                    child: FilledButton(onPressed: save,
+                        child: const Text('Add symptom')))
+              ]))));
+
+  Future<void> save() async {
+    if (!(key.currentState?.validate() ?? false)) return;
+    await Scope.of(context).addSymptom(Symptom(id: uid(),
+        name: name.text.trim(),
+        severity: sev,
+        dateTime: DateTime.now(),
+        duration: duration.text.trim(),
+        trigger: trigger.text.trim(),
+        notes: notes.text.trim()));
+    if (!mounted) return;
+
+    FocusScope.of(context).unfocus();
+
+    Navigator.of(context).pop();
   }
 }
 
 Future<void> waterGoal(BuildContext c) async {
   if (!c.mounted) return;
-  final x = Scope.of(c),
-      t = TextEditingController(text: '${x.settings.waterGoal}');
-  int? v;
-  try {
-    v = await showDialog<int>(context: c,
-        builder: (d) =>
-            AlertDialog(title: const Text('Water goal'),
-                content: TextField(controller: t,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(suffixText: 'ml')),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(d),
-                      child: const Text('Cancel')),
-                  FilledButton(onPressed: () {
-                    final n = int.tryParse(t.text);
-                    if (n != null && n >= 250 && n <= 10000) Navigator.pop(d, n);
-                  }, child: const Text('Save'))
-                ]));
-  } finally {
-    t.dispose();
-  }
+  final x = Scope.of(c);
+  final v = await showDialog<int>(context: c,
+      builder: (_) => _WaterGoalDialog(initialGoal: x.settings.waterGoal));
   if (v != null && c.mounted) x.setSettings(x.settings.copyWith(waterGoal: v));
+}
+
+class _WaterGoalDialog extends StatefulWidget {
+  const _WaterGoalDialog({required this.initialGoal});
+
+  final int initialGoal;
+
+  @override State<_WaterGoalDialog> createState() => _WaterGoalDialogState();
+}
+
+class _WaterGoalDialogState extends State<_WaterGoalDialog> {
+  late final TextEditingController t;
+
+  @override void initState() {
+    super.initState();
+    t = TextEditingController(text: '${widget.initialGoal}');
+  }
+
+  @override void dispose() {
+    t.dispose();
+    super.dispose();
+  }
+
+  @override Widget build(BuildContext d) =>
+      AlertDialog(title: const Text('Water goal'),
+          content: TextField(controller: t,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(suffixText: 'ml')),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(d),
+                child: const Text('Cancel')),
+            FilledButton(onPressed: () {
+              final n = int.tryParse(t.text);
+              if (n != null && n >= 250 && n <= 10000) Navigator.pop(d, n);
+            }, child: const Text('Save'))
+          ]);
 }
 
 Future<void> clearAll(BuildContext c) async {
