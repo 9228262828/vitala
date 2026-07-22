@@ -409,21 +409,42 @@ class Vitala extends StatefulWidget {
 }
 
 class _VitalaState extends State<Vitala> {
+  late ThemeMode mode;
+
+  @override void initState() {
+    super.initState();
+    mode = widget.controller.settings.mode;
+    widget.controller.addListener(syncThemeMode);
+  }
+
+  @override void didUpdateWidget(Vitala oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) return;
+    oldWidget.controller.removeListener(syncThemeMode);
+    mode = widget.controller.settings.mode;
+    widget.controller.addListener(syncThemeMode);
+  }
+
+  void syncThemeMode() {
+    final next = widget.controller.settings.mode;
+    if (next == mode || !mounted) return;
+    setState(() => mode = next);
+  }
+
   @override void dispose() {
+    widget.controller.removeListener(syncThemeMode);
     widget.controller.dispose();
     super.dispose();
   }
 
   @override Widget build(BuildContext context) =>
       Scope(controller: widget.controller,
-          child: AnimatedBuilder(animation: widget.controller,
-              builder: (_, __) =>
-                  MaterialApp(debugShowCheckedModeBanner: false,
-                      title: 'Vitala',
-                      themeMode: widget.controller.settings.mode,
-                      theme: theme(Brightness.light),
-                      darkTheme: theme(Brightness.dark),
-                      home: const Splash())));
+          child: MaterialApp(debugShowCheckedModeBanner: false,
+              title: 'Vitala',
+              themeMode: mode,
+              theme: theme(Brightness.light),
+              darkTheme: theme(Brightness.dark),
+              home: const Splash()));
 
   ThemeData theme(Brightness b) {
     final cs = ColorScheme.fromSeed(
@@ -1051,7 +1072,7 @@ class Stat extends StatelessWidget {
 Future<void> welcome(BuildContext c) async {
   if (!c.mounted) return;
   final x = Scope.of(c);
-  await showDialog(context: c,
+  final accepted = await showDialog<bool>(context: c,
       barrierDismissible: false,
       builder: (d) =>
           AlertDialog(icon: const Icon(Icons.health_and_safety, size: 42),
@@ -1059,15 +1080,15 @@ Future<void> welcome(BuildContext c) async {
               content: const Text(
                   'Vitala works offline and stores data on this device. It is not a substitute for medical advice, diagnosis, or treatment.'),
               actions: [FilledButton(onPressed: () {
-                x.accept();
-                Navigator.pop(d);
+                Navigator.pop(d, true);
               }, child: const Text('I Understand'))
               ]));
+  if (accepted == true && c.mounted) await x.accept();
 }
 
 Future<void> addHub(BuildContext c) async {
   if (!c.mounted) return;
-  await showModalBottomSheet<void>(context: c,
+  final action = await showModalBottomSheet<String>(context: c,
         showDragHandle: true,
         builder: (s) =>
             SafeArea(child: Padding(padding: const EdgeInsets.all(18),
@@ -1077,37 +1098,39 @@ Future<void> addHub(BuildContext c) async {
                       ActionChip(avatar: const Icon(Icons.monitor_heart),
                           label: const Text('Health record'),
                           onPressed: () {
-                            Navigator.pop(s);
-                            if (c.mounted) typePicker(c);
+                            Navigator.pop(s, 'record');
                           }),
                       ActionChip(avatar: const Icon(Icons.medication),
                           label: const Text('Medication'),
                           onPressed: () {
-                            Navigator.pop(s);
-                            if (c.mounted) medEditor(c);
+                            Navigator.pop(s, 'medication');
                           }),
                       ActionChip(avatar: const Icon(Icons.sick),
                           label: const Text('Symptom'),
                           onPressed: () {
-                            Navigator.pop(s);
-                            if (c.mounted) symptomEditor(c);
+                            Navigator.pop(s, 'symptom');
                           }),
                       ActionChip(avatar: const Icon(Icons.water_drop),
                           label: const Text('Quick 250 ml'),
                           onPressed: () {
-                            Navigator.pop(s);
-                            if (!c.mounted) return;
-                            Scope.of(c).addRecord(HealthRecord(id: uid(),
-                                type: RecordType.water,
-                                dateTime: DateTime.now(),
-                                a: 250));
+                            Navigator.pop(s, 'water');
                           })
                     ]))));
+  if (!c.mounted) return;
+  if (action == 'record') await typePicker(c);
+  if (action == 'medication') await medEditor(c);
+  if (action == 'symptom') await symptomEditor(c);
+  if (action == 'water') {
+    await Scope.of(c).addRecord(HealthRecord(id: uid(),
+        type: RecordType.water,
+        dateTime: DateTime.now(),
+        a: 250));
+  }
 }
 
 Future<void> typePicker(BuildContext c) async {
   if (!c.mounted) return;
-  await showModalBottomSheet<void>(context: c,
+  final type = await showModalBottomSheet<RecordType>(context: c,
         isScrollControlled: true,
         showDragHandle: true,
         builder: (s) =>
@@ -1119,11 +1142,11 @@ Future<void> typePicker(BuildContext c) async {
                     crossAxisSpacing: 8,
                     children: RecordType.values.map((t) =>
                         FilledButton.tonalIcon(onPressed: () {
-                          Navigator.pop(s);
-                          if (c.mounted) recordEditor(c, t);
+                          Navigator.pop(s, t);
                         },
                             icon: Icon(t.icon),
                             label: Text(t.label, maxLines: 2))).toList()))));
+  if (type != null && c.mounted) await recordEditor(c, type);
 }
 
 Future<void> recordEditor(BuildContext c, RecordType type,
