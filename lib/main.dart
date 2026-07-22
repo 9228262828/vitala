@@ -409,21 +409,42 @@ class Vitala extends StatefulWidget {
 }
 
 class _VitalaState extends State<Vitala> {
+  late ThemeMode mode;
+
+  @override void initState() {
+    super.initState();
+    mode = widget.controller.settings.mode;
+    widget.controller.addListener(syncThemeMode);
+  }
+
+  @override void didUpdateWidget(Vitala oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) return;
+    oldWidget.controller.removeListener(syncThemeMode);
+    mode = widget.controller.settings.mode;
+    widget.controller.addListener(syncThemeMode);
+  }
+
+  void syncThemeMode() {
+    final next = widget.controller.settings.mode;
+    if (next == mode || !mounted) return;
+    setState(() => mode = next);
+  }
+
   @override void dispose() {
+    widget.controller.removeListener(syncThemeMode);
     widget.controller.dispose();
     super.dispose();
   }
 
   @override Widget build(BuildContext context) =>
       Scope(controller: widget.controller,
-          child: AnimatedBuilder(animation: widget.controller,
-              builder: (_, __) =>
-                  MaterialApp(debugShowCheckedModeBanner: false,
-                      title: 'Vitala',
-                      themeMode: widget.controller.settings.mode,
-                      theme: theme(Brightness.light),
-                      darkTheme: theme(Brightness.dark),
-                      home: const Splash())));
+          child: MaterialApp(debugShowCheckedModeBanner: false,
+              title: 'Vitala',
+              themeMode: mode,
+              theme: theme(Brightness.light),
+              darkTheme: theme(Brightness.dark),
+              home: const Splash()));
 
   ThemeData theme(Brightness b) {
     final cs = ColorScheme.fromSeed(
