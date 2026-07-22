@@ -235,7 +235,11 @@ class Settings {
 }
 
 double? doubleOf(dynamic v) {
-  final n = v is num ? v.toDouble() : v is String ? double.tryParse(v.trim()) : null;
+  final n = v is num
+      ? v.toDouble()
+      : v is String
+          ? double.tryParse(v.trim())
+          : null;
   return n == null || !n.isFinite ? null : n;
 }
 
@@ -315,7 +319,11 @@ class AppController extends ChangeNotifier {
     try {
       final p = await store.p;
       final s = p.getString('vitala_app_settings');
-      if (s != null) settings = Settings.fromJson(jsonDecode(s));
+      if (s != null) {
+        try {
+          settings = Settings.fromJson(mapOf(jsonDecode(s)));
+        } catch (_) {}
+      }
       firstSeen = p.getBool('vitala_first_launch') ?? false;
     } catch (_) {}
     sort();
