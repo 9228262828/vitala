@@ -1,16 +1,14 @@
-# vitala
+# Vitala
 
-A new Flutter project.
+Flutter Material 3 offline Health Journal & Wellness Tracker.
 
-## Getting Started
+Android package name: `com.vitala.healthjournal`
 
-This project is a starting point for a Flutter application.
+```bash
+flutter pub get
+dart format lib
+flutter analyze
+flutter build appbundle --release
+```
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Set both `namespace` and `applicationId` in `android/app/build.gradle.kts` to `com.vitala.healthjournal`.
