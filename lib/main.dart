@@ -87,16 +87,15 @@ class HealthRecord {
       };
 
   factory HealthRecord.fromJson(Map<String, dynamic> j)=>
-      HealthRecord(id: j['id'] ?? uid(),
+      HealthRecord(id: textOf(j['id'], fallback: uid()),
           type: RecordType.values.firstWhere((e) => e.name == j['type'],
               orElse: () => RecordType.note),
-          a: (j['a'] as num?)?.toDouble(),
-          b: (j['b'] as num?)?.toDouble(),
-          c: (j['c'] as num?)?.toDouble(),
-          dateTime: DateTime.tryParse('${j['dateTime']}') ?? DateTime.now(),
-          notes: '${j['notes'] ?? ''}',
-          extra: Map<String, dynamic>.from(
-              j['extra'] is Map ? j['extra'] : {}));
+          a: doubleOf(j['a']),
+          b: doubleOf(j['b']),
+          c: doubleOf(j['c']),
+          dateTime: dateOf(j['dateTime']),
+          notes: textOf(j['notes']),
+          extra: mapOf(j['extra']));
 
   String get value =>
       switch(type){
@@ -145,17 +144,17 @@ class Medication {
       };
 
   factory Medication.fromJson(Map<String, dynamic> j)=>
-      Medication(id: j['id'] ?? uid(),
-          name: '${j['name'] ?? ''}',
-          dosage: '${j['dosage'] ?? ''}',
-          unit: '${j['unit'] ?? 'Tablet'}',
-          frequency: '${j['frequency'] ?? 'Once daily'}',
-          startDate: DateTime.tryParse('${j['startDate']}') ?? DateTime.now(),
-          endDate: DateTime.tryParse('${j['endDate']}'),
-          instructions: '${j['instructions'] ?? ''}',
-          notes: '${j['notes'] ?? ''}',
+      Medication(id: textOf(j['id'], fallback: uid()),
+          name: textOf(j['name']),
+          dosage: textOf(j['dosage']),
+          unit: textOf(j['unit'], fallback: 'Tablet'),
+          frequency: textOf(j['frequency'], fallback: 'Once daily'),
+          startDate: dateOf(j['startDate']),
+          endDate: nullableDateOf(j['endDate']),
+          instructions: textOf(j['instructions']),
+          notes: textOf(j['notes']),
           active: j['active'] != false,
-          createdAt: DateTime.tryParse('${j['createdAt']}'));
+          createdAt: nullableDateOf(j['createdAt']));
 }
 
 class Intake {
@@ -175,11 +174,11 @@ class Intake {
       };
 
   factory Intake.fromJson(Map<String, dynamic> j)=>
-      Intake(id: j['id'] ?? uid(),
-          medicationId: '${j['medicationId'] ?? ''}',
-          name: '${j['name'] ?? ''}',
-          dosage: '${j['dosage'] ?? ''}',
-          takenAt: DateTime.tryParse('${j['takenAt']}') ?? DateTime.now());
+      Intake(id: textOf(j['id'], fallback: uid()),
+          medicationId: textOf(j['medicationId']),
+          name: textOf(j['name']),
+          dosage: textOf(j['dosage']),
+          takenAt: dateOf(j['takenAt']));
 }
 
 class Symptom {
@@ -202,13 +201,13 @@ class Symptom {
       };
 
   factory Symptom.fromJson(Map<String, dynamic> j)=>
-      Symptom(id: j['id'] ?? uid(),
-          name: '${j['name'] ?? ''}',
-          severity: ((j['severity'] as num?)?.toInt() ?? 1).clamp(1, 10),
-          dateTime: DateTime.tryParse('${j['dateTime']}') ?? DateTime.now(),
-          duration: '${j['duration'] ?? ''}',
-          trigger: '${j['trigger'] ?? ''}',
-          notes: '${j['notes'] ?? ''}');
+      Symptom(id: textOf(j['id'], fallback: uid()),
+          name: textOf(j['name']),
+          severity: intOf(j['severity'], fallback: 1, min: 1, max: 10),
+          dateTime: dateOf(j['dateTime']),
+          duration: textOf(j['duration']),
+          trigger: textOf(j['trigger']),
+          notes: textOf(j['notes']));
 }
 
 class Settings {
@@ -230,8 +229,44 @@ class Settings {
   factory Settings.fromJson(Map<String, dynamic> j)=>
       Settings(mode: ThemeMode.values.firstWhere((e) => e.name == j['mode'],
           orElse: () => ThemeMode.system),
-          waterGoal: (j['waterGoal'] as num?)?.toInt() ?? 2000,
+          waterGoal: intOf(j['waterGoal'],
+              fallback: 2000, min: 250, max: 10000),
           tips: j['tips'] != false);
+}
+
+double? doubleOf(dynamic v) {
+  final n = v is num ? v.toDouble() : v is String ? double.tryParse(v.trim()) : null;
+  return n == null || !n.isFinite ? null : n;
+}
+
+int intOf(dynamic v,
+    {required int fallback, int? min, int? max}) {
+  final n = doubleOf(v)?.toInt();
+  final clamped = (n ?? fallback).clamp(min ?? -0x7fffffff, max ?? 0x7fffffff);
+  return clamped.toInt();
+}
+
+DateTime dateOf(dynamic v) => nullableDateOf(v) ?? DateTime.now();
+
+DateTime? nullableDateOf(dynamic v) {
+  if (v == null) return null;
+  if (v is DateTime) return v;
+  return DateTime.tryParse('$v');
+}
+
+String textOf(dynamic v, {String fallback = ''}) {
+  if (v == null) return fallback;
+  final s = '$v';
+  return s.isEmpty ? fallback : s;
+}
+
+Map<String, dynamic> mapOf(dynamic v) {
+  if (v is! Map) return {};
+  final m = <String, dynamic>{};
+  v.forEach((key, value) {
+    if (key is String) m[key] = value;
+  });
+  return m;
 }
 
 class Store {
@@ -241,15 +276,26 @@ class Store {
     try {
       final s = (await p).getString(k);
       if (s == null) return [];
-      return (jsonDecode(s) as List).whereType<Map>().map((e) =>
-          f(Map<String, dynamic>.from(e))).toList();
+      final decoded = jsonDecode(s);
+      if (decoded is! List) return [];
+      final items = <T>[];
+      for (final e in decoded) {
+        if (e is! Map) continue;
+        try {
+          items.add(f(mapOf(e)));
+        } catch (_) {}
+      }
+      return items;
     } catch (_) {
       return [];
     }
   }
 
-  Future<void> save(String k, List<Map<String, dynamic>> v) async =>
-      (await p).setString(k, jsonEncode(v));
+  Future<void> save(String k, List<Map<String, dynamic>> v) async {
+    try {
+      await(await p).setString(k, jsonEncode(v));
+    } catch (_) {}
+  }
 }
 
 class AppController extends ChangeNotifier {
@@ -267,10 +313,11 @@ class AppController extends ChangeNotifier {
     intakes = await store.list('vitala_medication_intakes', Intake.fromJson);
     symptoms = await store.list('vitala_symptoms', Symptom.fromJson);
     try {
-      final s = (await store.p).getString('vitala_app_settings');
+      final p = await store.p;
+      final s = p.getString('vitala_app_settings');
       if (s != null) settings = Settings.fromJson(jsonDecode(s));
+      firstSeen = p.getBool('vitala_first_launch') ?? false;
     } catch (_) {}
-    firstSeen = (await store.p).getBool('vitala_first_launch') ?? false;
     sort();
   }
 
@@ -356,14 +403,18 @@ class AppController extends ChangeNotifier {
   Future<void> setSettings(Settings s) async {
     settings = s;
     notifyListeners();
-    await(await store.p).setString(
-        'vitala_app_settings', jsonEncode(s.toJson()));
+    try {
+      await(await store.p).setString(
+          'vitala_app_settings', jsonEncode(s.toJson()));
+    } catch (_) {}
   }
 
   Future<void> accept() async {
     firstSeen = true;
     notifyListeners();
-    await(await store.p).setBool('vitala_first_launch', true);
+    try {
+      await(await store.p).setBool('vitala_first_launch', true);
+    } catch (_) {}
   }
 
   Future<void> clear() async {
@@ -373,15 +424,17 @@ class AppController extends ChangeNotifier {
     symptoms.clear();
     settings = const Settings();
     notifyListeners();
-    final p = await store.p;
-    for (final k in [
-      'vitala_health_records',
-      'vitala_medications',
-      'vitala_medication_intakes',
-      'vitala_symptoms',
-      'vitala_app_settings'
-    ])
-      await p.remove(k);
+    try {
+      final p = await store.p;
+      for (final k in [
+        'vitala_health_records',
+        'vitala_medications',
+        'vitala_medication_intakes',
+        'vitala_symptoms',
+        'vitala_app_settings'
+      ])
+        await p.remove(k);
+    } catch (_) {}
   }
 
   double get waterToday =>
@@ -576,6 +629,7 @@ class Dashboard extends StatelessWidget {
   @override Widget build(BuildContext c) {
     final x = Scope.of(c);
     final now = DateTime.now();
+    final waterGoal = max(1, x.settings.waterGoal);
     return ListView(padding: const EdgeInsets.fromLTRB(18, 18, 18, 110),
         children: [
           Text(now.hour < 12 ? 'Good morning' : now.hour < 18
@@ -593,12 +647,11 @@ class Dashboard extends StatelessWidget {
                     const Text('Daily wellness', style: TextStyle(
                         fontSize: 18, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 12),
-                    Text('Water today: ${fmt(x.waterToday)} / ${x.settings
-                        .waterGoal} ml'),
+                    Text('Water today: ${fmt(x.waterToday)} / $waterGoal ml'),
                     const SizedBox(height: 8),
                     LinearProgressIndicator(
-                        value: (x.waterToday / x.settings.waterGoal).clamp(
-                            0, 1))
+                        value: (x.waterToday / waterGoal).clamp(
+                            0.0, 1.0).toDouble())
                   ]))),
           const SizedBox(height: 22),
           const Header('Today overview'),
@@ -660,18 +713,24 @@ class History extends StatelessWidget {
               ?.copyWith(fontWeight: FontWeight.w900)),
           const SizedBox(height: 18),
           NavCard(Icons.monitor_heart_outlined, 'Health records',
-              '${x.records.length} saved entries', () =>
-                  Navigator.push(c,
-                      MaterialPageRoute(builder: (_) => const RecordsPage()))),
+              '${x.records.length} saved entries', () {
+                if (!c.mounted) return;
+                Navigator.push(c,
+                    MaterialPageRoute(builder: (_) => const RecordsPage()));
+              }),
           NavCard(Icons.medication_outlined, 'Medications', '${x.meds
               .where((e) => e.active)
-              .length} active', () =>
-              Navigator.push(
-                  c, MaterialPageRoute(builder: (_) => const MedsPage()))),
+              .length} active', () {
+                if (!c.mounted) return;
+                Navigator.push(
+                    c, MaterialPageRoute(builder: (_) => const MedsPage()));
+              }),
           NavCard(Icons.sick_outlined, 'Symptoms journal',
-              '${x.symptoms.length} logged', () =>
-                  Navigator.push(c,
-                      MaterialPageRoute(builder: (_) => const SymptomsPage())))
+              '${x.symptoms.length} logged', () {
+                if (!c.mounted) return;
+                Navigator.push(c,
+                    MaterialPageRoute(builder: (_) => const SymptomsPage()));
+              })
         ]);
   }
 }
@@ -1133,19 +1192,23 @@ Future<void> typePicker(BuildContext c) async {
   final type = await showModalBottomSheet<RecordType>(context: c,
         isScrollControlled: true,
         showDragHandle: true,
-        builder: (s) =>
-            SafeArea(child: Padding(padding: const EdgeInsets.all(18),
-                child: GridView.count(shrinkWrap: true,
-                    crossAxisCount: 2,
-                    childAspectRatio: 2.2,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    children: RecordType.values.map((t) =>
-                        FilledButton.tonalIcon(onPressed: () {
-                          Navigator.pop(s, t);
-                        },
-                            icon: Icon(t.icon),
-                            label: Text(t.label, maxLines: 2))).toList()))));
+        builder: (s) {
+          final maxHeight = MediaQuery.of(s).size.height * .75;
+          return SafeArea(child: Padding(padding: const EdgeInsets.all(18),
+              child: ConstrainedBox(constraints: BoxConstraints(
+                  maxHeight: maxHeight),
+                  child: GridView.count(shrinkWrap: true,
+                      crossAxisCount: 2,
+                      childAspectRatio: 2.2,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      children: RecordType.values.map((t) =>
+                          FilledButton.tonalIcon(onPressed: () {
+                            Navigator.pop(s, t);
+                          },
+                              icon: Icon(t.icon),
+                              label: Text(t.label, maxLines: 2))).toList()))));
+        });
   if (type != null && c.mounted) await recordEditor(c, type);
 }
 
@@ -1246,11 +1309,18 @@ Future<void> recordEditor(BuildContext c, RecordType type,
                                   title: const Text('Date and time'),
                                   subtitle: Text(date(dt)),
                                   onTap: () async {
+                                    final first = DateTime(2000);
+                                    final last = DateTime.now().add(
+                                        const Duration(days: 1));
+                                    final initial = dt.isBefore(first)
+                                        ? first
+                                        : dt.isAfter(last)
+                                            ? last
+                                            : dt;
                                     final d = await showDatePicker(context: c,
-                                        firstDate: DateTime(2000),
-                                        lastDate: DateTime.now().add(
-                                            const Duration(days: 1)),
-                                        initialDate: dt);
+                                        firstDate: first,
+                                        lastDate: last,
+                                        initialDate: initial);
                                     if (d == null || !c.mounted) return;
                                     final t = await showTimePicker(
                                         context: c, initialTime: TimeOfDay
@@ -1272,9 +1342,9 @@ Future<void> recordEditor(BuildContext c, RecordType type,
                                     final n = HealthRecord(id: r?.id ?? uid(),
                                         type: type,
                                         dateTime: dt,
-                                        a: double.tryParse(a.text),
-                                        b: double.tryParse(b.text),
-                                        c: double.tryParse(cc.text),
+                                        a: doubleOf(a.text),
+                                        b: doubleOf(b.text),
+                                        c: doubleOf(cc.text),
                                         notes: notes.text.trim(),
                                         extra: {
                                           if(type == RecordType.mood)'mood': mood,
@@ -1323,6 +1393,7 @@ Widget number(TextEditingController c, String label, String unit,
               if (optional && (v == null || v.isEmpty)) return null;
               final n = double.tryParse(v ?? '');
               if (n == null) return 'Enter a valid number';
+              if (!n.isFinite) return 'Enter a valid number';
               if (n < 0) return 'Cannot be negative';
               if (max != null && n > max) return 'Maximum is $max';
               return null;
@@ -1658,7 +1729,7 @@ const disclaimer = [
 ];
 
 String fmt(double? n) =>
-    n == null ? '-' : n == n.roundToDouble() ? n.toStringAsFixed(0) : n
+    n == null || !n.isFinite ? '-' : n == n.roundToDouble() ? n.toStringAsFixed(0) : n
         .toStringAsFixed(1);
 
 String date(DateTime d) =>
